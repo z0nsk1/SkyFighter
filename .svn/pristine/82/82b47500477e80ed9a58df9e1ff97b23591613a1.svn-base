@@ -1,0 +1,4 @@
+Source File,Dest File,Processor Type,Content Type,Source File Size,Dest File Size,Build Seconds
+"D:/SkyFighter/SkyFighter/SkyFighter/Content/fokker1.png","D:/SkyFighter/SkyFighter/SkyFighter/Content/bin/Windows/fokker1.xnb","TextureProcessor","Texture2DContent",34700,1153685,0,1216423
+"D:/SkyFighter/SkyFighter/SkyFighter/Content/I-16.png","D:/SkyFighter/SkyFighter/SkyFighter/Content/bin/Windows/I-16.xnb","TextureProcessor","Texture2DContent",37792,4096085,0,0877362
+"D:/SkyFighter/SkyFighter/SkyFighter/Content/potkurikone.mp3","D:/SkyFighter/SkyFighter/SkyFighter/Content/bin/Windows/potkurikone.xnb","SongProcessor","SongContent",265112,129,0,232377

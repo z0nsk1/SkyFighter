@@ -1,0 +1,397 @@
+﻿using System;
+using System.Collections.Generic;
+using Jypeli;
+using Jypeli.Assets;
+using Jypeli.Controls;
+using Jypeli.Effects;
+using Jypeli.Widgets;
+
+
+/// @author Jonni Nurminen
+/// version 13.12.2019
+
+public class SkyFighter : PhysicsGame
+{
+    AssaultRifle botinKonekivaari;
+    PhysicsObject pelaaja;
+    PhysicsObject botti;
+    AssaultRifle konekivaari;
+    DoubleMeter elamaLaskuri;
+    DoubleMeter pisteLaskuri;
+
+    Image fokker = LoadImage("fokker1");
+    Image i16 = LoadImage("I-16");
+
+    int botinHp = 5;
+
+    public override void Begin()
+    {
+        Mouse.IsCursorVisible = false;
+        MultiSelectWindow alkuValikko = new MultiSelectWindow("SkyFighter", "Start game", "Quit");
+        alkuValikko.AddItemHandler(0, AloitaPeli);
+        alkuValikko.AddItemHandler(1, Exit);
+        alkuValikko.Color = Color.Cyan;
+        Add(alkuValikko);
+        IsFullScreen = true;
+        Level.BackgroundColor = Color.DarkBlue;
+
+        PhoneBackButton.Listen(ConfirmExit, "Lopeta peli");
+        Keyboard.Listen(Key.Escape, ButtonState.Pressed, ConfirmExit, "Lopeta peli");
+    }
+
+
+    void AloitaPeli()
+    {
+        MediaPlayer.Play("potkurikone");
+        MediaPlayer.IsRepeating = true;
+        LuoPelaaja();
+        LuoElamaLaskuri();
+        LuoPisteLaskuri();
+        LuoOhjaimet(Key.Up, Key.Down, Key.Space);
+        LuoBotti();
+        LuoKentta();
+        Timer.SingleShot(10.0, LuoBotti);
+        Timer.SingleShot(18.0, LuoBotti);
+        Timer.SingleShot(25.0, LuoBotti);
+        Timer.SingleShot(30.0, LuoBotti);
+        Timer.SingleShot(34.0, LuoBotti);
+        Timer.SingleShot(37.0, LuoBotti);
+        Timer.SingleShot(39.0, LuoBotti);
+    }
+
+    /// <summary>
+    /// Luodaan pelaaja ja sen ase
+    /// </summary>
+    void LuoPelaaja()
+    {
+        pelaaja = new PhysicsObject(230, 100);
+        pelaaja.Image = fokker;
+        pelaaja.Shape = Shape.FromImage(fokker);
+        pelaaja.Position = new Vector(-3800, -1400);
+        pelaaja.CanRotate = false;
+        pelaaja.IgnoresPhysicsLogics = true;
+        pelaaja.MaxVelocity = 500;
+        pelaaja.Angle = Angle.FromDegrees(-12);
+        pelaaja.Push(new Vector(45000, 0));
+        AddCollisionHandler(pelaaja, "maasto", OsuuMaahan);
+        pelaaja.Restitution = 0;
+        Camera.Follow(pelaaja);
+        if (pelaaja.IsDestroyed) LopetaPeli();
+        Add(pelaaja, -1);
+
+        konekivaari = new AssaultRifle(1, 1);
+        konekivaari.Image = null;
+        konekivaari.Angle = Angle.FromDegrees(9);
+        konekivaari.FireRate = 15;
+        konekivaari.Ammo.Value = 1000;
+        konekivaari.CanHitOwner = false;
+        konekivaari.ProjectileCollision = PelaajanAmmusOsuu;
+
+        pelaaja.Add(konekivaari);
+    }
+
+    /// <summary>
+    /// Luodaan pelaajan elämälaskuri, jos hp loppuu, peli loppuu. Näkyy ruudussa.
+    /// </summary>
+    void LuoElamaLaskuri()
+    {
+        elamaLaskuri = new DoubleMeter(100);
+        elamaLaskuri.MaxValue = 100;
+        elamaLaskuri.LowerLimit += LopetaPeli;
+        ProgressBar elamaPalkki = new ProgressBar(150, 20);
+        elamaPalkki.X = Screen.Right - 150;
+        elamaPalkki.Y = Screen.Top - 20;
+        elamaPalkki.BindTo(elamaLaskuri);
+        Label hp = new Label("Hp");
+        elamaPalkki.Add(hp);
+        Add(elamaPalkki);
+    }
+
+    /// <summary>
+    /// Laskuri, joka laskee pisteitä ja näyttää ne ruudussa.
+    /// </summary>
+    void LuoPisteLaskuri()
+    {
+        pisteLaskuri = new DoubleMeter(0);
+        pisteLaskuri.MaxValue = 30;
+        pisteLaskuri.UpperLimit += LopetaPeli2;
+        ProgressBar pistePalkki = new ProgressBar(150, 20);
+        pistePalkki.X = Screen.Right - 150;
+        pistePalkki.Y = Screen.Top - 50;
+        pistePalkki.BindTo(pisteLaskuri);
+        //pistePalkki.Color = Color.Yellow;
+        Label pisteet = new Label("pisteet");
+        pistePalkki.Add(pisteet);
+        Add(pistePalkki);
+    }
+
+    /// <summary>
+    /// Käsitellään pelaajan törmäämistä maahan, liitetään tapahtumaan räjähdys ja lopetetaan peli.
+    /// </summary>
+    /// <param name="pelaaja">Pelaaja</param>
+    /// <param name="maasto">Maa, kohde johon pelaaja törmää</param>
+    void OsuuMaahan(PhysicsObject pelaaja, IPhysicsObject maasto)
+    {
+        pelaaja.Destroy();
+        Explosion rajahdys = new Explosion(350);
+        rajahdys.Position = pelaaja.AbsolutePosition;
+        rajahdys.Speed = 500;
+        rajahdys.UseShockWave = false;
+        Add(rajahdys);
+        Timer.SingleShot(1.0, LopetaPeli);
+    }
+
+    /// <summary>
+    /// Käsitellään botin törmäystä maahan, liitetään tapahtumaan räjähdys
+    /// </summary>
+    /// <param name="botti">Botti</param>
+    /// <param name="maasto">Maa, kohde johon botti törmää</param>
+    void BottiOsuuMaahan(PhysicsObject botti, IPhysicsObject maasto)
+    {
+        botti.Destroy();
+        Explosion rajahdys = new Explosion(350);
+        rajahdys.Position = botti.AbsolutePosition;
+        rajahdys.Speed = 300;
+        rajahdys.UseShockWave = false;
+        Add(rajahdys);
+    }
+
+    /// <summary>
+    /// Tehdään aliohjelmalla, jossa on pelaajan aseen ampumistapahtuma
+    /// </summary>
+    /// <param name="konekivaari">viedään parametrina pelaajan ase</param>
+    void Ammu(AssaultRifle konekivaari)
+    {
+        PhysicsObject ammus = konekivaari.Shoot();
+
+        if (ammus != null)
+        {
+            ammus.Size *= 0.4;
+            ammus.Tag = "ammus1";
+            ammus.CollisionIgnoreGroup = 2;
+        }
+    }
+
+    /// <summary>
+    /// Aliohjelma, jossa käsitellään mitä tapahtuu, kun ammus osuu johonkin
+    /// </summary>
+    /// <param name="ammus">pelaajan ammus</param>
+    /// <param name="kohde">kohde johon ammus osuu</param>
+    void PelaajanAmmusOsuu(PhysicsObject ammus, PhysicsObject kohde)
+    {
+        ammus.Destroy();
+        botinHp--;
+        pisteLaskuri.Value += 2;
+
+        if (botinHp <= 0)
+        {
+            botti.Destroy();
+        }
+    }
+
+    /// <summary>
+    /// Aliohjelma, jossa käsitellään, mitä tapahtuu, kun botin ammus osuu pelaajaan.
+    /// Vähennetään pelaajan hp:ta ja jos pelaajan hp:t loppuvat, tuhotaan pelaaja ja lopetetaan peli
+    /// </summary>
+    /// <param name="ammus">botin ammus</param>
+    /// <param name="kohde">kohde johon ammus osuu</param>
+    void BotinAmmusOsuu(PhysicsObject ammus, PhysicsObject kohde)
+    {
+        if (kohde == pelaaja) elamaLaskuri.Value--;
+        ammus.Destroy();
+    }
+
+    /// <summary>
+    /// Luodaan botti, sille ase ja tekoäly
+    /// </summary>
+    /// <param name="paikka">Botin paikkavektori, joka annetaan aliohjelmakutsussa</param>
+    void LuoBotti()
+    {
+        Vector paikka = Level.GetRandomPosition();
+        botti = new PhysicsObject(230, 140);
+        botti.Image = i16;
+        botti.Shape = Shape.FromImage(i16);
+        botti.FlipImage();
+        botti.MirrorImage();
+        botti.Position = paikka;
+        botti.CanRotate = false;
+        botti.IgnoresPhysicsLogics = true;
+        botti.MaxVelocity = 500;
+        botti.Restitution = 0;
+        AddCollisionHandler(pelaaja, botti, Tormasivat);
+        AddCollisionHandler(botti, "maasto", BottiOsuuMaahan);
+        Add(botti, -1);
+
+        FollowerBrain ai = new FollowerBrain(pelaaja);
+        ai.Speed = 300;
+        ai.TurnSpeed = UnlimitedAngle.FromRadians(1.5);
+        ai.TurnWhileMoving = true;
+        ai.StopWhenTargetClose = false;
+        botti.Brain = ai;
+
+        botinKonekivaari = new AssaultRifle(1, 1);
+        botinKonekivaari.Image = null;
+        botinKonekivaari.InfiniteAmmo = true;
+        botinKonekivaari.FireRate = 10;
+        botinKonekivaari.ProjectileCollision = BotinAmmusOsuu;
+        botinKonekivaari.CanHitOwner = false;
+        botti.Add(botinKonekivaari);
+
+        Timer ajastin = new Timer();
+        ajastin.Interval = 0.01;
+        ajastin.Timeout += delegate
+        {
+            if (botti.IsDestroyed == true)
+            {
+                ajastin.Stop();
+                return;
+            }
+            VihollinenAmpuu(botinKonekivaari);
+        };
+        ajastin.Start();
+    }
+
+    /// <summary>
+    /// Käsitellään pelaajan ja botin törmäystä: liitetään tapahtumaan räjähdys, tuhotaan molemmat ja lopetetaan peli.
+    /// </summary>
+    /// <param name="pelaaja">pelaaja</param>
+    /// <param name="botti">botti, mihin pelaaja törmäsi</param>
+    void Tormasivat(PhysicsObject pelaaja, IPhysicsObject botti)
+    {
+        pelaaja.Destroy();
+        botti.Destroy();
+        MessageDisplay.Add("Oho! Törmasit vastustajaan, GG");
+        Explosion rajahdys = new Explosion(400);
+        rajahdys.Position = (pelaaja.AbsolutePosition + botti.AbsolutePosition) / 2;
+        rajahdys.Speed = 250;
+        rajahdys.UseShockWave = false;
+        Add(rajahdys);
+
+        Timer.SingleShot(1.5, LopetaPeli);
+    }
+
+    /// <summary>
+    /// Botin aseen ampumistapahtumaa käsittelevä aliohjelma
+    /// </summary>
+    /// <param name="botinkonekivaari">Botin konekivääri</param>
+    void VihollinenAmpuu(AssaultRifle botinkonekivaari)
+    {
+        PhysicsObject ammus = botinkonekivaari.Shoot();
+
+        if (ammus != null)
+        {
+            ammus.Size *= 0.4;
+            ammus.Tag = "vihunAmmus";
+            ammus.Position = botti.AbsolutePosition + botti.AbsoluteAngle.GetVector().Normalize() * 86;
+            ammus.Mass = 0.00000001;
+        }
+    }
+
+    /// <summary>
+    /// Aliohjelma, jossa luodaan kentta. Luodaan maastolle korkeusarvot silmukalla taulukkoon. Korkeusarvot ovat satunnaisia
+    /// </summary>
+    private void LuoKentta()
+    {
+        Camera.Zoom(0.8);
+        Gravity = new Vector(0.0, -10000.0);
+        Level.Size = new Vector(8000, 4000);
+        Level.Background.CreateGradient(Color.DarkBlue, Color.LightBlue);
+        PhysicsObject ylaReuna = Level.CreateTopBorder();
+        PhysicsObject vasenReuna = Level.CreateLeftBorder();
+        PhysicsObject oikeaReuna = Level.CreateRightBorder();
+        PhysicsObject alaReuna = Level.CreateBottomBorder();
+        ylaReuna.CollisionIgnoreGroup = 2;
+        vasenReuna.CollisionIgnoreGroup = 2;
+        oikeaReuna.CollisionIgnoreGroup = 2;
+        alaReuna.CollisionIgnoreGroup = 2;
+        AddCollisionHandler(pelaaja, ylaReuna, TormasiSeinaan);
+        AddCollisionHandler(pelaaja, vasenReuna, TormasiSeinaan);
+        AddCollisionHandler(pelaaja, oikeaReuna, TormasiSeinaan);
+        AddCollisionHandler(pelaaja, alaReuna, OsuuMaahan);
+
+        double[] maastot = new double[30];
+
+        for (int i = 0; i < maastot.Length; i++)
+        {
+            maastot[i] = RandomGen.NextInt(400);
+        }
+
+        Surface maasto = new Surface(8000, maastot, 1.0);
+        maasto.CollisionIgnoreGroup = 2;
+        maasto.Position = new Vector(0, -1840);
+        maasto.Color = Color.White;
+        maasto.Tag = "maasto";
+        Add(maasto, -2);
+    }
+
+    /// <summary>
+    /// Törmäyskäsittelijän aliohjelma, jossa lisätään pelaajalle painovoima, joilloin pelaaja putoaa ja liitetään tapahtumaan teksti ja räjähdys.
+    /// </summary>
+    /// <param name="pelaaja">Pelaaja</param>
+    /// <param name="reuna">Kentän reuna, johon törmätään</param>
+    void TormasiSeinaan(PhysicsObject pelaaja, PhysicsObject reuna)
+    {
+        pelaaja.IgnoresPhysicsLogics = false;
+        MessageDisplay.Add("Hups! Törmäsit seinään ja putoat");
+
+        Explosion rajahdys = new Explosion(350);
+        rajahdys.Position = pelaaja.AbsolutePosition;
+        rajahdys.Speed = 500;
+        rajahdys.UseShockWave = false;
+        Add(rajahdys);
+    }
+
+    /// <summary>
+    /// Aliohjelma, jossa luodaan peliin ohjaimet.
+    /// </summary>
+    /// <param name="Up">Parametrina viety näppäin ylös</param>
+    /// <param name="Down">Parametrina viety näppäin alas</param>
+    /// <param name="Space">Parametrina viety näppäin välilyönti</param>
+    void LuoOhjaimet(Key Up, Key Down, Key Space)
+    {
+        Keyboard.Listen(Up, ButtonState.Down, Lenna, "Ylös", 1.7);
+        Keyboard.Listen(Down, ButtonState.Down, Lenna, "Alas", -1.7);
+        Keyboard.Listen(Space, ButtonState.Down, Ammu, "Pelaaja ampuu", konekivaari);
+    }
+
+    /// <summary>
+    /// Aliohjelma, jossa käsitellään, mitä pelaajan liikkumisnäppäimistä tapahtuu. 
+    /// Pelaaja liikkuu vakionopeudella ja näppäimistä ylös tai alas
+    /// </summary>
+    /// <param name="kulma">Näppäinkutsusta tullut kulma, joka kertoo paljon pelaajan kulma muuttuu näppäintä painaessa</param>
+    void Lenna(double kulma)
+    {
+        pelaaja.Angle += Angle.FromDegrees(kulma);
+        Vector lentosuunta = Vector.FromLengthAndAngle(7500, pelaaja.Angle);
+        pelaaja.Push(lentosuunta);
+    }
+
+    /// <summary>
+    /// Aliohjelma, joka lopettaa pelin, näyttää tekstin "hävisit pelin" ja aloittaa pelin alusta
+    /// </summary>
+    void LopetaPeli()
+    {
+        ClearAll();
+        MessageDisplay.Add("Hävisit pelin!");
+        Timer.SingleShot(2.0, Begin);
+    }
+
+    /// <summary>
+    /// Lopettaa pelin ja aloittaa alusta, jos pisteraja täyttyy
+    /// </summary>
+    void LopetaPeli2()
+    {
+        ClearAll();
+        Label teksti = new Label(1000, 200, "ONNEKSI OLKOON, OLET VIINERI!");
+        teksti.TextColor = Color.Yellow;
+        Add(teksti);
+        Timer.SingleShot(2.0, delegate
+        {
+            teksti.Destroy();
+            Begin();
+        });
+    }
+
+
+}
+

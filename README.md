@@ -4,3 +4,4 @@ Pelin käynnistystiedosto (SkyFighter.exe) löytyy polusta "SkyFighter/bin/Windo
 Pari kuvankaappausta:
 
 ![](/SkyFighter1.png)
+![](/SkyFighter2.png)
